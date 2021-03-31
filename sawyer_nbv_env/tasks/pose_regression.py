@@ -1,5 +1,6 @@
 from collections import OrderedDict
 import numpy as np
+import torch
 
 from robosuite.utils.transform_utils import convert_quat
 from robosuite.utils.mjcf_utils import CustomMaterial
@@ -10,11 +11,13 @@ from robosuite.models.arenas import TableArena
 #from robosuite.models.objects import BoxObject
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.placement_samplers import UniformRandomSampler
-from sawyer_nbv_env.tasks.assets.objects import NBVCubeObject
+from sawyer_nbv_env.tasks.assets.objects import NBVCubeObject, NBVCubeObjectVisual
 from robosuite.utils.transform_utils import make_pose, pose_inv, mat2pose, get_orientation_error
 
 from simple_posereg.dataloader  import data_transform
 from simple_posereg.model import PoseNet
+
+from torchvision import transforms
 
 
 class PoseRegCube(SingleArmEnv):
@@ -147,13 +150,14 @@ class PoseRegCube(SingleArmEnv):
         render_visual_mesh=True,
         render_gpu_device_id=-1,
         control_freq=20,
-        horizon=1000,
+        horizon=300,
         ignore_done=False,
         hard_reset=True,
         camera_names="agentview",
         camera_heights=256,
         camera_widths=256,
         camera_depths=False,
+        model_dict="model.pth"
     ):
         # settings for table top
         self.table_full_size = table_full_size
@@ -172,7 +176,10 @@ class PoseRegCube(SingleArmEnv):
 
         # pose regressor
         self.pose_regressor = PoseNet()
-        self.pose_regressor.load_state_dict(model_dict)
+        self.pose_regressor.load_state_dict(torch.load(model_dict))
+        self.pose_regressor.eval()
+
+        self.to_tensor = transforms.ToTensor()
 
         super().__init__(
             robots=robots,
@@ -239,23 +246,27 @@ class PoseRegCube(SingleArmEnv):
         cube_pos = self.sim.data.get_body_xpos("cube_main") 
         cube_rot = self.sim.data.get_body_xmat("cube_main") 
         cube_pose = make_pose(cube_pos,cube_rot) # T_w_o
-        cam_pos = self.sim.data.get_camera_xpos("dataset_cam_{}".format(cam_idx))
-        cam_rot = self.sim.data.get_camera_xmat("dataset_cam_{}".format(cam_idx)) 
+        cam_pos = self.sim.data.get_camera_xpos("robot0_eye_in_hand")
+        cam_rot = self.sim.data.get_camera_xmat("robot0_eye_in_hand") 
         cam_pose = pose_inv(make_pose(cam_pos,cam_rot)) #T_ci_w
         pose_obj = cam_pose.dot(cube_pose) # object pose wrt camera i
         positionLabel, orientationLabel = mat2pose(cam_pose)
 
         # Prediction
-        image = self.sim.render(256,256,camera_name="robot0_eye_in_hand") 
+        image, depth = self.sim.render(256,256,camera_name="robot0_eye_in_hand", depth=True) 
         input_img = data_transform(image)
-        out_pose = self.pose_regressor(input_img)
-        out_position = out_pose[:3]
-        out_orientation = out_pose[3:]
+        input_img = torch.unsqueeze(input_img, 0)
+        depth_img = self.to_tensor(depth)
+        depth_img = torch.unsqueeze(depth_img, 0)   
+        inputs =  torch.cat([input_img, depth_img], 1)
+        out_pose = self.pose_regressor(inputs)
+        out_position = out_pose[0,:3].detach().cpu().numpy()
+        out_orientation = out_pose[0,3:].detach().cpu().numpy()
 
-        pos_err = (target_pos - current_pos) 
+        pos_err = (positionLabel - out_position) 
         ori_err = get_orientation_error(orientationLabel, out_orientation)
 
-        reward = (np.linalg.norm(pos_err) / np.linalg.norm(target_pos)) + np.linalg.norm(ori_err)
+        reward = -(np.linalg.norm(pos_err) / np.linalg.norm(out_position)) - np.linalg.norm(ori_err)
 
         return reward
 
@@ -280,29 +291,8 @@ class PoseRegCube(SingleArmEnv):
         mujoco_arena.set_origin([0, 0, 0])
 
         # initialize objects of interest
-        tex_attrib = {
-            "type": "cube",
-        }
-        mat_attrib = {
-            "texrepeat": "1 1",
-            "specular": "0.4",
-            "shininess": "0.1",
-        }
-        redwood = CustomMaterial(
-            texture="WoodRed",
-            tex_name="redwood",
-            mat_name="redwood_mat",
-            tex_attrib=tex_attrib,
-            mat_attrib=mat_attrib,
-        )
-        #self.cube = BoxObject(
-        #    name="cube",
-        #    size_min=[0.020, 0.020, 0.020],  # [0.015, 0.015, 0.015],
-        #    size_max=[0.022, 0.022, 0.022],  # [0.018, 0.018, 0.018])
-        #    rgba=[1, 0, 0, 1],
-        #    material=redwood,
-        #)
         self.cube = NBVCubeObject(name="cube")
+        self.cube_pred = NBVCubeObjectVisual(name="cube_pred")
 
         # Create placement initializer
         if self.placement_initializer is not None:

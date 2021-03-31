@@ -10,7 +10,7 @@ def nbvEnv():
             rs.make(
                 "PoseRegCube",
                 robots=["Sawyer"],
-                controller_configs=load_controller_config(default_controller="OSC_POSITION"),            
+                controller_configs=load_controller_config(default_controller="OSC_POSE"),            
                 use_camera_obs=True,  #  use pixel observations
                 has_offscreen_renderer=True,  # not needed since not using pixel obs
                 has_renderer=False,  # make sure we can render to the screen
@@ -20,6 +20,7 @@ def nbvEnv():
                 camera_heights=[84],
                 camera_widths=[84],
                 camera_depths=[True],
+                model_dict="/home/toni/Experiments/NBV/simple_pose_regressor/trained_models/models_beta2/model_24.pth"
             ),
             img_keys = ["robot0_eye_in_hand_image", "robot0_eye_in_hand_depth"],
             vect_keys = ["robot0_eef_pos","robot0_gripper_qpos"]

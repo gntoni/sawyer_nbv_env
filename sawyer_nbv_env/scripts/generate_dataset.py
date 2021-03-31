@@ -26,7 +26,7 @@ for itr in range(iterations):
     cube_pose = make_pose(cube_pos,cube_rot) # T_w_o
     
     for cam_idx in range(cams_per_iteration):
-        imageCi = env.unwrapped.sim.render(256,256,camera_name="dataset_cam_{}".format(cam_idx)) 
+        imageCi, depthCi = env.unwrapped.sim.render(256,256,camera_name="dataset_cam_{}".format(cam_idx), depth=True) 
 
         # get cam_pos
         cam_pos = env.unwrapped.sim.data.get_camera_xpos("dataset_cam_{}".format(cam_idx))
@@ -39,7 +39,9 @@ for itr in range(iterations):
 
         # save img and label
         im = Image.fromarray(imageCi)
+        dp = Image.fromarray(depthCi)
         im.save(os.path.join(directory,"image_{}.jpg".format(cam_idx+itr*cams_per_iteration)))
-        labelsFile.write("image_{}.jpg\t{}\t{}\n".format(cam_idx+itr*cams_per_iteration,positionLabel, orientationLabel))
+        dp.save(os.path.join(directory,"depth_{}.tiff".format(cam_idx+itr*cams_per_iteration)))
+        labelsFile.write("image_{}.jpg\tdepth_{}.tiff\t{}\t{}\n".format(cam_idx+itr*cams_per_iteration, cam_idx+itr*cams_per_iteration, positionLabel, orientationLabel))
 labelsFile.close()
 

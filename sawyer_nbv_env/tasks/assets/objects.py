@@ -14,3 +14,14 @@ class NBVCubeObject(MujocoXMLObject):
         super().__init__(os.path.join(assets_root,"cube.xml"),
                          name=name, joints=[dict(type="free", damping="0.0005")],
                          obj_type="all", duplicate_collision_geoms=True)
+
+
+class NBVCubeObjectVisual(MujocoXMLObject):
+    """
+    Coke can object (used in PickPlace)
+    """
+
+    def __init__(self, name):
+        super().__init__(os.path.join(assets_root,"cube.xml"),
+                         name=name, joints=[dict(type="free", damping="0.0005")],
+                         obj_type="visual", duplicate_collision_geoms=True)
