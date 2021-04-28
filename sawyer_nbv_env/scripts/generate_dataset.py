@@ -6,7 +6,7 @@ from PIL import Image
 from sawyer_nbv_env import sawyer_env
 from robosuite.utils.transform_utils import make_pose, pose_inv, mat2pose
 
-iterations = 1000 # x10 images per iteration
+iterations = 10000 # x10 images per iteration
 directory = "./dataset"
 
 env = gym.make('CaptureDataset-v0')  

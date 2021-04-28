@@ -11,13 +11,17 @@ from robosuite.models.arenas import TableArena
 #from robosuite.models.objects import BoxObject
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.placement_samplers import UniformRandomSampler
-from sawyer_nbv_env.tasks.assets.objects import NBVCubeObject, NBVCubeObjectVisual
+from sawyer_nbv_env.tasks.assets.objects import NBVCubeObject
 from robosuite.utils.transform_utils import make_pose, pose_inv, mat2pose, get_orientation_error
 
 from simple_posereg.dataloader  import data_transform
 from simple_posereg.model import PoseNet
+from simple_posereg.train import pose_loss
 
 from torchvision import transforms
+
+# Change according to the current experiment
+from .exp_reward_2 import test_reward
 
 
 class PoseRegCube(SingleArmEnv):
@@ -167,6 +171,8 @@ class PoseRegCube(SingleArmEnv):
         # reward configuration
         self.reward_scale = reward_scale
         self.reward_shaping = reward_shaping
+        self.pose_reward = None
+        self.pose_loss = pose_loss(2)
 
         # whether to use ground-truth object states
         self.use_object_obs = use_object_obs
@@ -206,67 +212,8 @@ class PoseRegCube(SingleArmEnv):
         )
 
     def reward(self, action=None):
-        """
-        Reward function for the task.
 
-        Sparse un-normalized reward:
-
-            - a discrete reward of 2.25 is provided if the cube is lifted
-
-        Un-normalized summed components if using reward shaping:
-
-            - Reaching: in [0, 1], to encourage the arm to reach the cube
-            - Grasping: in {0, 0.25}, non-zero if arm is grasping the cube
-            - Lifting: in {0, 1}, non-zero if arm has lifted the cube
-
-        The sparse reward only consists of the lifting component.
-
-        Note that the final reward is normalized and scaled by
-        reward_scale / 2.25 as well so that the max score is equal to reward_scale
-
-        Args:
-            action (np array): [NOT USED]
-
-        Returns:
-            float: reward value
-        """
-        reward = 0.
-
-        # sparse completion reward  TODO
-        #if self._check_success():
-        #    reward = 2.25
-
-        # use a shaping reward
-        #elif self.reward_shaping:
-
-        ## sparse reward
-
-        # Label
-        cube_pos = self.sim.data.body_xpos[self.cube_body_id]
-        cube_pos = self.sim.data.get_body_xpos("cube_main") 
-        cube_rot = self.sim.data.get_body_xmat("cube_main") 
-        cube_pose = make_pose(cube_pos,cube_rot) # T_w_o
-        cam_pos = self.sim.data.get_camera_xpos("robot0_eye_in_hand")
-        cam_rot = self.sim.data.get_camera_xmat("robot0_eye_in_hand") 
-        cam_pose = pose_inv(make_pose(cam_pos,cam_rot)) #T_ci_w
-        pose_obj = cam_pose.dot(cube_pose) # object pose wrt camera i
-        positionLabel, orientationLabel = mat2pose(cam_pose)
-
-        # Prediction
-        image, depth = self.sim.render(256,256,camera_name="robot0_eye_in_hand", depth=True) 
-        input_img = data_transform(image)
-        input_img = torch.unsqueeze(input_img, 0)
-        depth_img = self.to_tensor(depth)
-        depth_img = torch.unsqueeze(depth_img, 0)   
-        inputs =  torch.cat([input_img, depth_img], 1)
-        out_pose = self.pose_regressor(inputs)
-        out_position = out_pose[0,:3].detach().cpu().numpy()
-        out_orientation = out_pose[0,3:].detach().cpu().numpy()
-
-        pos_err = (positionLabel - out_position) 
-        ori_err = get_orientation_error(orientationLabel, out_orientation)
-
-        reward = -(np.linalg.norm(pos_err) / np.linalg.norm(out_position)) - np.linalg.norm(ori_err)
+        reward = test_reward(self)
 
         return reward
 
@@ -292,7 +239,6 @@ class PoseRegCube(SingleArmEnv):
 
         # initialize objects of interest
         self.cube = NBVCubeObject(name="cube")
-        self.cube_pred = NBVCubeObjectVisual(name="cube_pred")
 
         # Create placement initializer
         if self.placement_initializer is not None:
@@ -318,16 +264,17 @@ class PoseRegCube(SingleArmEnv):
             mujoco_objects=self.cube,
         )
 
-    def _get_reference(self):
+    def _setup_references(self):
         """
         Sets up references to important components. A reference is typically an
         index or a list of indices that point to the corresponding elements
         in a flatten array, which is how MuJoCo stores physical simulation data.
         """
-        super()._get_reference()
+        super()._setup_references()
 
         # Additional object references from this env
         self.cube_body_id = self.sim.model.body_name2id(self.cube.root_body)
+        self.cube_vis_geom_id = self.sim.model.geom_name2id(self.cube.visual_geoms[0])
 
     def _reset_internal(self):
         """
@@ -344,6 +291,22 @@ class PoseRegCube(SingleArmEnv):
             # Loop through all objects and reset their positions
             for obj_pos, obj_quat, obj in object_placements.values():
                 self.sim.data.set_joint_qpos(obj.joints[0], np.concatenate([np.array(obj_pos), np.array(obj_quat)]))
+
+    def _post_action(self, action):
+        """
+        Extends the main post action to include the pose regressor loss in the info
+        
+        Returns:
+            TYPE: Description
+        """
+        reward, done, info = super()._post_action(action)
+
+        if self.pose_reward is not None:
+            info["regressor_loss"] = self.pose_reward
+
+        return reward, done, info
+
+
 
     def _get_observation(self):
         """
@@ -364,6 +327,11 @@ class PoseRegCube(SingleArmEnv):
             OrderedDict: Observations from the environment
         """
         di = super()._get_observation()
+
+        di["pose_reward"] = self.pose_reward
+
+        # Get segmentation image
+        di["segmentation_img"] = self.segmentation_img
 
         # low-level object information
         if self.use_object_obs:

@@ -11,7 +11,7 @@
       <body name="object">
         <!--geom pos="0 0 0.02" size="0.02 0.02 0.02" type="box" name="cube_collision" friction='.35' solimp=".99 .999 .001" solref=".01 1" /-->
         <!--geom pos="0 0 0" mesh="cube_mesh" type="mesh" material="cube-oneside" name="cube_collision" friction='.35' solimp=".99 .999 .001" solref=".01 1" group="0" /-->
-        <geom pos="0 0 0" mesh="cube_mesh" type="mesh" material="cube-oneside" density="150" condim="4" group="0" friction="0.95 0.3 0.1" solimp=".99 .999 .001" solref=".001 1"  name="cube_visual"/>
+        <geom pos="0 0 0" mesh="cube_mesh" type="mesh" material="cube-oneside" density="150" condim="4" group="0" friction="0.95 0.3 0.1" solimp=".99 .999 .001" solref=".001 1"/>
       </body>
 
       <site rgba="0 0 0 0" size="0.005" pos="0 0 -0.01" name="bottom_site"/>

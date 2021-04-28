@@ -290,7 +290,7 @@ class CaptureDataset(SingleArmEnv):
 
         idx = 0
         for i in range(self.n_cameras):
-            cam_pos = np.array([np.random.uniform(-1.0,1.0),np.random.uniform(-1.0,1.0),np.random.uniform(1.1,1.6)])
+            cam_pos = np.array([np.random.uniform(-.7,0.7),np.random.uniform(-0.7,0.7),np.random.uniform(1.0,1.7)])
             cam_dir = np.array([0,0,-1]) # camera is initially looking towards (0,0,-1)
             d_cam_pt = self.table_offset - cam_pos
             d_cam_pt_length = np.linalg.norm(d_cam_pt)
@@ -311,7 +311,7 @@ class CaptureDataset(SingleArmEnv):
 
             q = euler_to_quaternion(r,p,y)
 
-            mujoco_arena.set_camera("dataset_cam_{}".format(idx),cam_pos,q)
+            mujoco_arena.set_camera("dataset_cam_{}".format(idx),cam_pos,q,{"fovy": 75})
             idx += 1
 
 

@@ -179,6 +179,19 @@ class GymWrapper(Wrapper):
         ob_dict, reward, done, info = self.env.step(action)
         return self._flatten_obs(ob_dict), reward, done, info
 
+    def render(self, mode=None, **kwargs):
+        """
+        Extends env render method to catch mode selection.
+        
+        Args:
+            mode: [NOT USED]
+            **kwargs: Description
+        """
+        # Dummy args used to mimic Wrapper interface
+        return self.env.render()
+
+
+
     def seed(self, seed=None):
         """
         Utility function to set numpy seed

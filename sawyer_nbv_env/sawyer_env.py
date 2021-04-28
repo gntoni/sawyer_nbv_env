@@ -20,7 +20,7 @@ def nbvEnv():
                 camera_heights=[84],
                 camera_widths=[84],
                 camera_depths=[True],
-                model_dict="/home/toni/Experiments/NBV/simple_pose_regressor/trained_models/models_beta2/model_24.pth"
+                model_dict="/home/toni/Experiments/next_best_view/1_simple_pose_regressor_training/trained_models/models_beta2/model_24.pth"
             ),
             img_keys = ["robot0_eye_in_hand_image", "robot0_eye_in_hand_depth"],
             vect_keys = ["robot0_eef_pos","robot0_gripper_qpos"]
@@ -80,7 +80,7 @@ def liftEnv():
 
 def liftEnvPlay():
     env = GymWrapper(
-        MergeObsWrapper(        
+        #MergeObsWrapper(        
             rs.make(
                 "LiftNBVCube",
                 robots=["Sawyer"],
@@ -92,12 +92,14 @@ def liftEnvPlay():
                 control_freq=10,  # control should happen fast enough so that simulation looks smooth
                 camera_heights=84,
                 camera_widths=84,
-                camera_depths=True,            
+                camera_depths=True,     
+                render_camera=None       
             ),
-            img_keys = ["agentview_image", "agentview_depth"],
-            vect_keys = ["robot0_robot-state"]            
-        ),
-        keys=["merged_obs"]        
+            #img_keys = ["agentview_image", "agentview_depth"],
+            #vect_keys = ["robot0_robot-state"]            
+        #),
+        #keys=["merged_obs"]        
+        keys=["robot0_eef_pos","robot0_gripper_qpos"]
     )
     return env
 

@@ -309,13 +309,13 @@ class LiftNBVCube(SingleArmEnv):
             mujoco_objects=self.cube,
         )
 
-    def _get_reference(self):
+    def _setup_references(self):
         """
         Sets up references to important components. A reference is typically an
         index or a list of indices that point to the corresponding elements
         in a flatten array, which is how MuJoCo stores physical simulation data.
         """
-        super()._get_reference()
+        super()._setup_references()
 
         # Additional object references from this env
         self.cube_body_id = self.sim.model.body_name2id(self.cube.root_body)
